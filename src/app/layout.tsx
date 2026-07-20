@@ -2,8 +2,8 @@ import './globals.css'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Lars Fyhr Portfolio',
-  description: 'Curated portfolio site built by Lars Fyhr',
+  title: 'Lars Fyhr',
+  description: 'Engineer. Builder. Explorer.',
 }
 
 export default function RootLayout({
@@ -12,8 +12,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className="overscroll-none">{children}</body>
+    <html lang="en" className="dark">
+      <body>{children}</body>
     </html>
   )
 }
