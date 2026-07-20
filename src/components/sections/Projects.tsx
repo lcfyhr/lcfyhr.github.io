@@ -23,7 +23,19 @@ export default function ProjectsSection() {
             `}
           >
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold">{project.name}</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold">{project.name}</h3>
+                {project.company && (
+                  <span className={`text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded ${
+                    project.company === 'Oracle' ? 'bg-red-500/15 text-red-400' :
+                    project.company === 'Meta' ? 'bg-blue-500/15 text-blue-400' :
+                    project.company === 'FyrLabs' ? 'bg-yellow-500/15 text-yellow-400' :
+                    'bg-[var(--border)] text-[var(--muted)]'
+                  }`}>
+                    {project.company}
+                  </span>
+                )}
+              </div>
               <span className="text-xs text-[var(--muted)] font-mono">
                 {expanded === i ? '−' : '+'}
               </span>

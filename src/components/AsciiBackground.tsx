@@ -14,11 +14,19 @@ interface Ripple {
   birth: number
 }
 
+interface Hotspot {
+  col: number
+  row: number
+  phase: number
+  speed: number
+}
+
 export default function AsciiBackground({ darkMode }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const frameRef = useRef<number>(0)
   const darkRef = useRef(darkMode)
   const ripplesRef = useRef<Ripple[]>([])
+  const timeRef = useRef<number>(0)
 
   darkRef.current = darkMode
 
@@ -42,13 +50,26 @@ export default function AsciiBackground({ darkMode }: Props) {
       charOffset: Math.floor(Math.random() * CHARS.length),
     }))
 
-    let time = 0
-    const rippleSpeed = 300 // px per second
-    const rippleWidth = 80 // thickness of the ring
-    const rippleLife = 2.5 // seconds
+    // Create blinking hotspots - clusters of cells that pulse brightly
+    const hotspots: Hotspot[] = []
+    const numHotspots = 5 + Math.floor(Math.random() * 4)
+    for (let i = 0; i < numHotspots; i++) {
+      hotspots.push({
+        col: Math.floor(Math.random() * cols),
+        row: Math.floor(Math.random() * rows),
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.8 + Math.random() * 1.2,
+      })
+    }
+
+    let time = timeRef.current
+    const rippleSpeed = 300
+    const rippleWidth = 80
+    const rippleLife = 2.5
 
     const draw = () => {
       time += 0.016
+      timeRef.current = time
       const dark = darkRef.current
       const ripples = ripplesRef.current
 
@@ -81,7 +102,6 @@ export default function AsciiBackground({ darkMode }: Props) {
             const dy = cy - ripple.y
             const dist = Math.sqrt(dx * dx + dy * dy)
 
-            // Ring shape: strong at the edge, fading inside
             const distFromRing = Math.abs(dist - rippleRadius)
             if (distFromRing < rippleWidth) {
               const ringStrength = 1 - distFromRing / rippleWidth
@@ -90,34 +110,59 @@ export default function AsciiBackground({ darkMode }: Props) {
             }
           }
 
+          // Calculate hotspot influence - pulsing glow near hotspots
+          let hotspotGlow = 0
+          for (const hs of hotspots) {
+            const dc = Math.abs(col - hs.col)
+            const dr = Math.abs(row - hs.row)
+            const dist = Math.sqrt(dc * dc + dr * dr)
+            const radius = 4
+            if (dist < radius) {
+              const pulse = (Math.sin(time * hs.speed + hs.phase) + 1) / 2
+              // Sharp blink: only glow when pulse is high
+              const blink = Math.pow(pulse, 3)
+              const falloff = 1 - dist / radius
+              hotspotGlow = Math.max(hotspotGlow, blink * falloff)
+            }
+          }
+
           // Base wave
           const wave = Math.sin(time * cell.speed + cell.phase + col * 0.05 + row * 0.03)
           const baseIntensity = (wave + 1) / 2
 
-          const intensity = Math.min(1, baseIntensity + proximity * 0.8)
+          const intensity = Math.min(1, baseIntensity + proximity * 0.8 + hotspotGlow * 0.6)
 
-          if (intensity < 0.55 && proximity === 0) continue
+          if (intensity < 0.55 && proximity === 0 && hotspotGlow < 0.1) continue
 
-          const alpha = proximity > 0
-            ? Math.min(0.9, proximity * 0.8 + (intensity - 0.3) * 0.2)
-            : (intensity - 0.55) / 0.45 * 0.35
+          let alpha: number
+          if (proximity > 0) {
+            alpha = Math.min(0.9, proximity * 0.8 + (intensity - 0.3) * 0.2)
+          } else if (hotspotGlow > 0.1) {
+            alpha = Math.min(0.85, hotspotGlow * 0.8 + (intensity - 0.3) * 0.15)
+          } else {
+            alpha = (intensity - 0.55) / 0.45 * 0.35
+          }
 
           if (alpha <= 0) continue
 
           const charIdx = proximity > 0.3
             ? Math.min(CHARS.length - 1, Math.floor(proximity * CHARS.length))
-            : Math.floor(time * cell.speed * 0.5 + cell.charOffset) % CHARS.length
+            : hotspotGlow > 0.3
+              ? Math.min(CHARS.length - 1, Math.floor(hotspotGlow * CHARS.length * 0.7))
+              : Math.floor(time * cell.speed * 0.5 + cell.charOffset) % CHARS.length
           const char = CHARS[charIdx]
 
           if (dark) {
-            const r = 140 + proximity * 80
-            const g = 180 + proximity * 40
+            const glow = Math.max(proximity, hotspotGlow * 0.7)
+            const r = 140 + glow * 80
+            const g = 180 + glow * 40
             const b = 255
             ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`
           } else {
-            const r = 40 - proximity * 20
-            const g = 60 - proximity * 20
-            const b = 120 + proximity * 60
+            const glow = Math.max(proximity, hotspotGlow * 0.7)
+            const r = 40 - glow * 20
+            const g = 60 - glow * 20
+            const b = 120 + glow * 60
             ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`
           }
 
@@ -138,7 +183,10 @@ export default function AsciiBackground({ darkMode }: Props) {
     }
 
     const handleClick = (e: MouseEvent) => {
-      ripplesRef.current.push({ x: e.clientX, y: e.clientY, birth: time })
+      // Don't trigger ripple if clicking on interactive UI elements
+      const target = e.target as HTMLElement
+      if (target.closest('a, button, [role="button"], nav, [data-interactive]')) return
+      ripplesRef.current.push({ x: e.clientX, y: e.clientY, birth: timeRef.current })
     }
 
     window.addEventListener('resize', handleResize)
